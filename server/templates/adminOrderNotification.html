@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9; }
+    .header { background: #d32f2f; color: white; padding: 20px; border-radius: 5px 5px 0 0; text-align: center; }
+    .content { background: white; padding: 30px; border-radius: 0 0 5px 5px; }
+    .alert { background: #fffde7; padding: 15px; border-left: 4px solid #fbc02d; margin: 20px 0; }
+    .order-number { font-size: 22px; font-weight: bold; color: #d32f2f; margin: 15px 0; }
+    .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .items-table th { background: #f0f0f0; padding: 10px; text-align: left; }
+    .items-table td { padding: 10px; border-bottom: 1px solid #eee; }
+    .button { display: inline-block; background: #d32f2f; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+    .footer { text-align: center; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔔 NEW ORDER RECEIVED</h1>
+    </div>
+    <div class="content">
+      <div class="alert">
+        <strong>⚠️ New Order Alert</strong>
+        <p>A new order has been placed and requires processing.</p>
+      </div>
+      
+      <div class="order-number">
+        Order #{{ORDER_NUMBER}}
+      </div>
+      
+      <h3>Customer Information:</h3>
+      <p>
+        <strong>Name:</strong> {{CUSTOMER_NAME}}<br>
+        <strong>Email:</strong> {{CUSTOMER_EMAIL}}<br>
+        <strong>Phone:</strong> {{CUSTOMER_PHONE}}<br>
+      </p>
+      
+      <h3>Order Details:</h3>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ORDER_ITEMS}}
+          <tr style="font-weight: bold; background: #f0f0f0;">
+            <td colspan="3">Total Amount</td>
+            <td>{{ORDER_TOTAL}} EGP</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h3>Delivery Address:</h3>
+      <p>{{CUSTOMER_ADDRESS}}</p>
+      
+      <h3>Payment Method:</h3>
+      <p>{{PAYMENT_METHOD}}</p>
+      
+      <p><strong>Status:</strong> <span style="background: #fff3cd; padding: 5px 10px; border-radius: 3px;">PENDING</span></p>
+      
+      <p><strong>Order Date:</strong> {{ORDER_DATE}}</p>
+      
+      <a href="{{APP_URL}}/admin" class="button">View in Admin Dashboard</a>
+      
+      <div class="footer">
+        <p>This is an automated notification from LapGPT Order System.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

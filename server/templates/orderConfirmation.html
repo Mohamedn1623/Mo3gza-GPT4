@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 5px 5px 0 0; text-align: center; }
+    .content { background: white; padding: 30px; border-radius: 0 0 5px 5px; }
+    .order-number { font-size: 24px; font-weight: bold; color: #667eea; margin: 20px 0; }
+    .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .items-table th { background: #f0f0f0; padding: 10px; text-align: right; }
+    .items-table td { padding: 10px; border-bottom: 1px solid #eee; }
+    .total-row { background: #f9f9f9; font-weight: bold; }
+    .button { display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+    .footer { text-align: center; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 12px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎉 تم استقبال طلبك</h1>
+    </div>
+    <div class="content">
+      <p>السلام عليكم ورحمة الله وبركاته {{CUSTOMER_NAME}}،</p>
+      
+      <p>شكرًا لطلبك معنا. استلمنا صورة تحويل رسوم الشحن، وطلبك الآن بانتظار مراجعة التحويل قبل تأكيد التجهيز.</p>
+      
+      <div class="order-number">
+        رقم الطلب: {{ORDER_NUMBER}}
+      </div>
+      
+      <h3>تفاصيل الطلب:</h3>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>المنتج</th>
+            <th>الكمية</th>
+            <th>السعر</th>
+            <th>الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ORDER_ITEMS}}
+          <tr class="total-row">
+            <td colspan="3">الإجمالي النهائي</td>
+            <td>{{ORDER_TOTAL}} ج.م</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h3>معلومات التسليم:</h3>
+      <p>
+        <strong>العنوان:</strong> {{CUSTOMER_ADDRESS}}<br>
+        <strong>رقم الهاتف:</strong> {{CUSTOMER_PHONE}}<br>
+        <strong>البريد الإلكتروني:</strong> {{CUSTOMER_EMAIL}}
+      </p>
+      
+      <h3>طريقة الدفع:</h3>
+      <p>{{PAYMENT_METHOD}}</p>
+      
+      <p><strong>حالة الطلب:</strong> <span style="color: #ff9800;">بانتظار مراجعة صورة التحويل</span></p>
+      
+      <p>سنتواصل معك قريبًا لتأكيد الطلب والبدء في معالجته.</p>
+      
+      <a href="{{APP_URL}}" class="button">متابعة الطلب</a>
+      
+      <div class="footer">
+        <p>إذا كان لديك أي استفسارات، يرجى التواصل معنا:</p>
+        <p>📞 01068111576 | 📧 {{EMAIL_TO}}</p>
+        <p>&copy; 2024 LapGPT. جميع الحقوق محفوظة.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

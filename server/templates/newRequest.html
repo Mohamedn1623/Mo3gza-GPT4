@@ -1,0 +1,22 @@
+<html>
+  <body style="font-family: Arial, sans-serif; direction: rtl; background:#f8fafc; margin:0; padding:0;">
+    <div style="max-width:680px; margin:24px auto; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 10px 35px rgba(15,23,42,0.08);">
+      <header style="padding:24px 24px 18px; background:linear-gradient(135deg,#0f172a,#2563eb); color:#fff;">
+        <h2 style="margin:0; font-size:24px;">طلب صيانة جديد</h2>
+        <p style="margin:8px 0 0; opacity:0.95;">رقم الطلب: {{REQUEST_ID}}</p>
+      </header>
+      <main style="padding:24px; color:#0f172a;">
+        <p><strong>التاريخ:</strong> {{DATE}}</p>
+        <p><strong>رابط الموقع:</strong> <a href="{{APP_URL}}" style="color:#2563eb;">{{APP_URL}}</a></p>
+        <h3 style="margin-top:20px;">معلومات العميل</h3>
+        <p><strong>الاسم:</strong> {{الاسم}}</p>
+        <p><strong>الهاتف:</strong> {{رقم_الهاتف}}</p>
+        <p><strong>البريد:</strong> {{البريد_الإلكتروني}}</p>
+        <h3 style="margin-top:20px;">تفاصيل الطلب</h3>
+        <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+          {{FIELDS_TABLE}}
+        </table>
+      </main>
+    </div>
+  </body>
+</html>
