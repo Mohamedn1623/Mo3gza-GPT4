@@ -1,7 +1,17 @@
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+
+function apiUrl(path) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  // VITE_API_URL has historically been documented as /api for Vercel, while
+  // callers already provide /api/... paths. Collapse that duplicate prefix.
+  if (API_BASE.endsWith("/api") && /^\/api(?:\/|$)/.test(normalizedPath)) {
+    return `${API_BASE.slice(0, -4)}${normalizedPath}`;
+  }
+  return `${API_BASE}${normalizedPath}`;
+}
 
 async function requestJson(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     headers: {
       Accept: "application/json",
       ...(options.headers || {}),
