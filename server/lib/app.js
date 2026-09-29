@@ -100,7 +100,8 @@ export function createApp() {
   app.post("/api/requests", async (req, res) => {
     try {
       const fields = req.body || {};
-      const needsShippingReceipt = fields.type === "shipping" || (fields.delivery && fields.delivery !== "زيارة الفرع");
+      const delivery = String(fields.delivery || "").trim().toLowerCase();
+      const needsShippingReceipt = fields.type === "shipping" || /شحن|منزل|منزلي|home|shipping/.test(delivery);
       if (needsShippingReceipt && !isValidReceipt(fields.payment_receipt)) {
         return res.status(400).json({ ok: false, error: "A valid shipping payment receipt image is required" });
       }

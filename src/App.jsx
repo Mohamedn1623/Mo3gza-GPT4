@@ -229,34 +229,47 @@ function Booking({ data, setData, navigate }) {
   const [receipt, setReceipt] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [formData, setFormData] = useState({});
   const formRef = useRef(null);
-  const handleReceipt = (e) => setReceipt(e.target.files[0]);
+  const needsShippingReceipt = deliveryType !== 'زيارة الفرع';
+  const handleReceipt = (e) => setReceipt(e.target.files?.[0] || null);
+  const collectCurrentStep = () => {
+    const values = {};
+    formRef.current?.querySelectorAll('input, textarea, select').forEach((input) => {
+      if (!input.name || input.type === 'file' || ((input.type === 'radio' || input.type === 'checkbox') && !input.checked)) return;
+      values[input.name] = input.value;
+    });
+    return values;
+  };
+  const goToNextStep = () => {
+    const invalid = [...(formRef.current?.querySelectorAll('input[required], textarea[required], select[required]') || [])].find((input) => !input.checkValidity());
+    if (invalid) { invalid.reportValidity(); return; }
+    setFormData((current) => ({ ...current, ...collectCurrentStep() }));
+    setFeedback('');
+    setStep((current) => current + 1);
+  };
 
   const finish = async () => {
     try {
-      if (deliveryType !== 'زيارة الفرع' && !receipt) {
+      if (needsShippingReceipt && !receipt) {
         setFeedback('لا يمكن إرسال طلب الشحن أو الاستلام من المنزل قبل رفع صورة تحويل رسوم الشحن.');
         return;
       }
       setSubmitting(true);
       setFeedback('جارٍ إرسال طلب الصيانة...');
-      const id = `LC-${Math.floor(100000 + Math.random()*900000)}`;
-      const form = formRef.current;
-      const inputs = form ? form.querySelectorAll('input, textarea, select') : [];
-      const payload = { requestId: id, delivery: deliveryType, payment_method: paymentMethod };
-      inputs.forEach(i => {
-        if (!i.name) return;
-        if ((i.type === 'radio' || i.type === 'checkbox') && !i.checked) return;
-        if (i.type !== 'file') payload[i.name] = i.value;
-      });
+      const payload = { ...formData, ...collectCurrentStep(), delivery: deliveryType };
+      if (needsShippingReceipt) payload.payment_method = paymentMethod;
       if (receipt) payload.payment_receipt = await receiptAsDataUrl(receipt);
       const res = await createRequest(payload);
-      const rid = res && res.id ? res.id : id;
+      const rid = res?.id || '';
       setData({ step: 4, done: true, id: rid });
       setFeedback('');
     } catch (err) {
       console.error(err);
-      setFeedback('تعذر إرسال الطلب الآن. جرّب مرة أخرى أو تواصل معنا مباشرة.');
+      const message = String(err?.message || '');
+      if (/receipt|إيصال|تحويل/i.test(message)) setFeedback('لا يمكن إرسال طلب الاستلام أو الشحن قبل رفع صورة تحويل رسوم الشحن.');
+      else if (/failed to fetch|network|fetch/i.test(message)) setFeedback('تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت ثم حاول مرة أخرى.');
+      else setFeedback(message || 'تعذر إرسال الطلب الآن. جرّب مرة أخرى أو تواصل معنا مباشرة.');
     } finally {
       setSubmitting(false);
     }
@@ -270,32 +283,32 @@ function Booking({ data, setData, navigate }) {
         <div className="steps">{["بيانات العميل","بيانات الجهاز","طريقة التسليم","التأكيد"].map((x,i) => <div className={step >= i+1 ? "current" : ""} key={x}><span>{i+1}</span><small>{x}</small></div>)}</div>
         <div className="form-grid">
           {step===1 && <>
-            <Field label="الاسم" required />
-            <Field label="رقم الهاتف" name="رقم_الهاتف" type="tel" required />
-            <Field label="البريد_الإلكتروني" type="email" />
-            <Field label="المحافظة_المنطقة" required />
+            <Field label="الاسم" defaultValue={formData.name} required />
+            <Field label="رقم الهاتف" name="رقم_الهاتف" type="tel" defaultValue={formData["رقم_الهاتف"]} required />
+            <Field label="البريد_الإلكتروني" type="email" defaultValue={formData["البريد_الإلكتروني"]} />
+            <Field label="المحافظة_المنطقة" defaultValue={formData["المحافظة_المنطقة"]} required />
           </>}
           {step===2 && <>
-            <Field label="ماركة_الجهاز" placeholder="Dell / HP / Lenovo" required />
-            <Field label="موديل_الجهاز" required />
-            <Field label="نوع_الجهاز" placeholder="لابتوب / كمبيوتر مكتبي" />
-            <Field label="العمر_التقريبي" />
-            <label className="field full">وصف المشكلة<textarea name="وصف_المشكلة" required placeholder="اكتب تفاصيل العطل أو المشكلة..."/></label>
+            <Field label="ماركة_الجهاز" placeholder="Dell / HP / Lenovo" defaultValue={formData["ماركة_الجهاز"]} required />
+            <Field label="موديل_الجهاز" defaultValue={formData["موديل_الجهاز"]} required />
+            <Field label="نوع_الجهاز" placeholder="لابتوب / كمبيوتر مكتبي" defaultValue={formData["نوع_الجهاز"]} />
+            <Field label="العمر_التقريبي" defaultValue={formData["العمر_التقريبي"]} />
+            <label className="field full">وصف المشكلة<textarea name="وصف_المشكلة" defaultValue={formData["وصف_المشكلة"]} required placeholder="اكتب تفاصيل العطل أو المشكلة..."/></label>
           </>}
           {step===3 && <>
-            <label className="field full">طريقة التسليم<div className="radios"><label><input type="radio" checked={deliveryType === 'زيارة الفرع'} onChange={() => setDeliveryType('زيارة الفرع')} name="delivery" value="زيارة الفرع"/> زيارة الفرع</label><label><input type="radio" checked={deliveryType === 'استلام من المنزل'} onChange={() => setDeliveryType('استلام من المنزل')} name="delivery" value="استلام من المنزل"/> استلام من المنزل</label><label><input type="radio" checked={deliveryType === 'شحن'} onChange={() => setDeliveryType('شحن')} name="delivery" value="شحن"/> شحن عبر شركة شحن</label></div></label>
-            <Field label="الموعد_المفضل" type="date" required />
-            <Field label="الفترة_المناسبة" placeholder="من 10 صباحًا إلى 2 ظهرًا" />
+            <label className="field full">طريقة التسليم<div className="radios"><label><input type="radio" checked={deliveryType === 'زيارة الفرع'} onChange={() => setDeliveryType('زيارة الفرع')} name="delivery" value="زيارة الفرع"/> زيارة الفرع</label><label><input type="radio" checked={deliveryType === 'استلام من المنزل'} onChange={() => setDeliveryType('استلام من المنزل')} name="delivery" value="استلام من المنزل"/> استلام من المنزل</label><label><input type="radio" checked={deliveryType === 'زيارة منزلية'} onChange={() => setDeliveryType('زيارة منزلية')} name="delivery" value="زيارة منزلية"/> زيارة منزلية</label><label><input type="radio" checked={deliveryType === 'شحن'} onChange={() => setDeliveryType('شحن')} name="delivery" value="شحن"/> شحن عبر شركة شحن</label></div></label>
+            <Field label="الموعد_المفضل" type="date" defaultValue={formData["الموعد_المفضل"]} required />
+            <Field label="الفترة_المناسبة" placeholder="من 10 صباحًا إلى 2 ظهرًا" defaultValue={formData["الفترة_المناسبة"]} />
           </>}
           {step===4 && <>
-            <div className="payment-panel"><p><b>اختر طريقة الدفع</b></p><div className="payment-methods"><button type="button" className={paymentMethod === "instapay" ? "payment-card selected" : "payment-card"} onClick={() => setPaymentMethod("instapay")}><img src={paymentLogos.instapay} alt="Instapay" className="payment-logo"/><span><small>انستا باي</small><strong>01068111576</strong></span></button><button type="button" className={paymentMethod === "vodafone" ? "payment-card selected" : "payment-card"} onClick={() => setPaymentMethod("vodafone")}> <img src={paymentLogos.vodafone} alt="Vodafone Cash" className="payment-logo"/><span><small>فودافون كاش</small><strong>01068111576</strong></span></button></div><label className="field full">رفع إيصال الدفع<input type="file" accept="image/*" onChange={handleReceipt}/></label>{receipt && <small>الصورة المرفوعة: {receipt.name}</small>}</div>
+            {needsShippingReceipt ? <div className="payment-panel"><p><b>رسوم الاستلام والشحن — اختر وسيلة التحويل وارفع الإيصال</b></p><div className="payment-methods"><button type="button" className={paymentMethod === "instapay" ? "payment-card selected" : "payment-card"} onClick={() => setPaymentMethod("instapay")}><img src={paymentLogos.instapay} alt="Instapay" className="payment-logo"/><span><small>انستا باي</small><strong>01068111576</strong></span></button><button type="button" className={paymentMethod === "vodafone" ? "payment-card selected" : "payment-card"} onClick={() => setPaymentMethod("vodafone")}> <img src={paymentLogos.vodafone} alt="Vodafone Cash" className="payment-logo"/><span><small>فودافون كاش</small><strong>01068111576</strong></span></button></div><label className="field full">صورة تحويل مصاريف الشحن (مطلوبة)<input type="file" accept="image/*" required onChange={handleReceipt}/></label>{receipt && <small>الصورة المرفوعة: {receipt.name}</small>}</div> : <div className="payment-panel"><p><b>زيارة الفرع لا تحتاج إلى تحويل رسوم شحن أو رفع إيصال.</b></p></div>}
             <div className="confirm"><p>راجع البيانات ثم اضغط إنهاء لإرسال الطلب.</p></div>
           </>}
         </div>
-        {feedback && <p className={`feedback-message ${feedback.includes('تعذر') ? 'error' : 'success'}`}>{feedback}</p>}
+        {feedback && <p className={`feedback-message ${/تعذر|لا يمكن/.test(feedback) ? 'error' : 'success'}`}>{feedback}</p>}
         <div className="form-actions">
           {step > 1 && <button type="button" className="secondary" onClick={() => setStep(s => s-1)}>السابق</button>}
-          {step < 4 && <button type="button" className="primary" onClick={() => setStep(s => s+1)}>التالي <ChevronLeft/></button>}
+          {step < 4 && <button type="button" className="primary" onClick={goToNextStep}>التالي <ChevronLeft/></button>}
           {step === 4 && <button type="button" className="primary" onClick={finish} disabled={submitting}>{submitting ? 'جارٍ الإرسال...' : 'إنهاء وارسال الطلب'} <ChevronLeft/></button>}
         </div>
       </div>
@@ -507,8 +520,8 @@ function Contact({ notify }) {
 function Info({icon:Icon,title,text}){return <div className="info"><Icon/><div><b>{title}</b><small>{text}</small></div></div>}
 function Page({title,text,children}){return <section className="page section"><div className="container"><Title title={title} text={text}/>{children}</div></section>}
 function Title({eyebrow,title,text}){return <div className="title">{eyebrow&&<span className="eyebrow">{eyebrow}</span>}<h2>{title}</h2>{text&&<p>{text}</p>}</div>}
-function Field({label,type="text",placeholder,required,name}){
+function Field({label,type="text",placeholder,required,name,defaultValue}){
   const fieldName = name || String(label).replace(/[^a-zA-Z0-9\u0600-\u06FF]+/g,'_');
-  return <label className="field">{label}<input name={fieldName} type={type} placeholder={placeholder} required={required}/></label>
+  return <label className="field">{label}<input name={fieldName} type={type} placeholder={placeholder} required={required} defaultValue={defaultValue || ""}/></label>
 }
 function Footer({navigate}){return <footer className="footer"><div className="container"><div><button className="brand" onClick={()=>navigate("home")}><Laptop/><span>Lap<b>GPT</b></span></button><p>صيانة وبيع مستلزمات اللابتوب في مكان واحد، بإشراف المهندس محمد ناصر معجزه.</p></div><div><b>روابط سريعة</b><button onClick={()=>navigate("services")}>الخدمات</button><button onClick={()=>navigate("store")}>المتجر</button><button onClick={()=>navigate("contact")}>تواصل معنا</button><button onClick={()=>navigate("admin")}>لوحة الإدارة</button></div><div><b>تواصل</b><p>01068111576<br/>6 أكتوبر، الجيزة<br/>الدفع: انستا باي، فودافون كاش</p></div></div><small>© 2026 LapGPT — جميع الحقوق محفوظة</small></footer>}
