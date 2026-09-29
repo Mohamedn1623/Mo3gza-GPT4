@@ -23,7 +23,16 @@ async function requestJson(path, options = {}) {
   const data = contentType.includes("application/json") ? await res.json().catch(() => ({})) : await res.text().catch(() => "");
 
   if (!res.ok) {
-    throw new Error(data?.error || data || "request_failed");
+    const responseMessage = typeof data === "string" ? data.trim() : data?.error;
+    // Vercel's NOT_FOUND and function failures can return an empty body or an
+    // HTML page. Avoid showing that markup (or the unhelpful request_failed).
+    const looksLikeHtml = /^<!doctype html|^<html/i.test(responseMessage || "");
+    const message = responseMessage && !looksLikeHtml
+      ? responseMessage
+      : res.status === 404
+        ? "مسار الخدمة غير موجود على Vercel. تأكد من نشر آخر نسخة التي تحتوي على دوال API."
+        : `تعذر الاتصال بالخدمة (HTTP ${res.status}). راجع سجلات دوال API وإعدادات Vercel.`;
+    throw new Error(message);
   }
 
   return data;
