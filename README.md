@@ -5,6 +5,8 @@
 1. Push the project to GitHub.
 2. Create a new Vercel project and connect the repository.
 3. In Vercel > Project Settings > Environment Variables, add:
+   - `SUPABASE_URL=https://your-project.supabase.co`
+   - `SUPABASE_SECRET_KEY=your-server-only-secret-key` (or the legacy `SUPABASE_SERVICE_ROLE_KEY`)
    - `SMTP_HOST=smtp.gmail.com`
    - `SMTP_PORT=587`
    - `SMTP_USER=your-email@gmail.com`
@@ -13,6 +15,8 @@
    - `EMAIL_FROM=LapGPT <your-email@gmail.com>`
    - `APP_URL=https://your-vercel-domain.vercel.app`
 4. Deploy.
+
+Before deploying, run `server/data/supabase-schema.sql` in the Supabase SQL Editor. Production deliberately refuses to save records to temporary local files when Supabase is missing. Check `https://your-domain/api/health`; it should return `"storage":"supabase"` before accepting orders.
 
 ## Email setup
 

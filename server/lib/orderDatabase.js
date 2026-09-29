@@ -167,7 +167,8 @@ async function addAdminReply(kind, id, reply) {
 }
 
 async function readCollection(kind, file) {
-  if (hasSupabaseConfig()) {
+  const storageMode = getStorageMode();
+  if (storageMode === "supabase") {
     const base = process.env.SUPABASE_URL.replace(/\/$/, "");
     const response = await fetch(`${base}/rest/v1/lapgpt_records?select=data&kind=eq.${kind}&order=created_at.asc`, { headers: supabaseHeaders() });
     if (!response.ok) throw new Error(`Supabase read failed (${response.status}).`);
@@ -176,6 +177,9 @@ async function readCollection(kind, file) {
     const legacy = await readLocalCollection(file);
     if (legacy.length) await writeCollection(kind, file, legacy);
     return legacy;
+  }
+  if (storageMode === "unavailable") {
+    throw new Error("التخزين غير مهيأ: أضف SUPABASE_URL وSUPABASE_SECRET_KEY إلى متغيرات بيئة Vercel.");
   }
   return readLocalCollection(file);
 }
@@ -191,7 +195,8 @@ async function readLocalCollection(file) {
 }
 
 async function writeCollection(kind, file, records) {
-  if (hasSupabaseConfig()) {
+  const storageMode = getStorageMode();
+  if (storageMode === "supabase") {
     if (!records.length) return;
     const rows = records.map((data) => ({ id: data.id, kind, created_at: data.createdAt || new Date().toISOString(), data }));
     const response = await fetch(`${process.env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/lapgpt_records?on_conflict=id`, {
@@ -201,6 +206,9 @@ async function writeCollection(kind, file, records) {
     });
     if (!response.ok) throw new Error(`Supabase write failed (${response.status}).`);
     return;
+  }
+  if (storageMode === "unavailable") {
+    throw new Error("التخزين غير مهيأ: أضف SUPABASE_URL وSUPABASE_SECRET_KEY إلى متغيرات بيئة Vercel.");
   }
   await ensureDataDir();
   await fs.writeFile(file, JSON.stringify(records, null, 2));
@@ -215,4 +223,18 @@ function hasSupabaseConfig() {
   return Boolean(process.env.SUPABASE_URL && (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY));
 }
 
-export { getAllOrders, generateOrderNumber, createOrder, getOrderById, updateOrderStatus, createServiceRequest, getServiceRequestById, getAllServiceRequests, getAllContactMessages, createContactRecord, updateServiceRequestStatus, addAdminReply };
+function getStorageMode() {
+  if (hasSupabaseConfig()) return "supabase";
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") return "unavailable";
+  return "local";
+}
+
+async function checkStorageHealth() {
+  const mode = getStorageMode();
+  if (mode !== "supabase") return { ok: mode === "local", storage: mode };
+  const base = process.env.SUPABASE_URL.replace(/\/$/, "");
+  const response = await fetch(`${base}/rest/v1/lapgpt_records?select=id&limit=1`, { headers: supabaseHeaders() });
+  return { ok: response.ok, storage: response.ok ? "supabase" : "unavailable", status: response.status };
+}
+
+export { getAllOrders, generateOrderNumber, createOrder, getOrderById, updateOrderStatus, createServiceRequest, getServiceRequestById, getAllServiceRequests, getAllContactMessages, createContactRecord, updateServiceRequestStatus, addAdminReply, getStorageMode, checkStorageHealth };

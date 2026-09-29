@@ -3,7 +3,7 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { sendNewRequest, sendContactMessage, sendCustomerMessage, sendStatusUpdate, sendOrderConfirmation, sendAdminOrderNotification, sendAdminCustomerEmail } from "./emailService.js";
-import { createOrder, getOrderById, getAllOrders, createServiceRequest, getServiceRequestById, getAllServiceRequests, getAllContactMessages, createContactRecord, updateOrderStatus, updateServiceRequestStatus, addAdminReply } from "./orderDatabase.js";
+import { createOrder, getOrderById, getAllOrders, createServiceRequest, getServiceRequestById, getAllServiceRequests, getAllContactMessages, createContactRecord, updateOrderStatus, updateServiceRequestStatus, addAdminReply, checkStorageHealth } from "./orderDatabase.js";
 import { adminCredentialsConfigured, createAdminToken, requireAdmin, verifyAdminPassword } from "./adminAuth.js";
 import { sendSms } from "./smsService.js";
 
@@ -260,8 +260,15 @@ export function createApp() {
 
   // ========== END ORDER ENDPOINT ==========
 
-  app.get("/api/health", (req, res) => {
-    res.json({ ok: true, message: "backend is running" });
+  app.get("/api/health", async (req, res) => {
+    try {
+      const health = await checkStorageHealth();
+      if (!health.ok) return res.status(503).json({ ...health, error: "أضف بيانات Supabase إلى إعدادات Vercel وتأكد من تشغيل الجدول." });
+      res.json({ ...health, message: "backend and storage are ready" });
+    } catch (error) {
+      console.error("Storage health check failed", error);
+      res.status(503).json({ ok: false, storage: "unavailable", error: "تعذر الاتصال بقاعدة بيانات Supabase." });
+    }
   });
 
   app.post("/api/test-email", async (req, res) => {
