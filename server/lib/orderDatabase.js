@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORDERS_FILE = path.join(__dirname, "..", "data", "orders.json");
 const REQUESTS_FILE = path.join(__dirname, "..", "data", "requests.json");
+const CONTACTS_FILE = path.join(__dirname, "..", "data", "contacts.json");
 const DATA_DIR = path.join(__dirname, "..", "data");
 let writeQueue = Promise.resolve();
 
@@ -37,16 +38,7 @@ async function ensureDataDir() {
 
 // Get all orders
 async function getAllOrders() {
-  try {
-    await ensureDataDir();
-    const data = await fs.readFile(ORDERS_FILE, "utf8");
-    return JSON.parse(data);
-  } catch (err) {
-    if (err.code === "ENOENT") {
-      return [];
-    }
-    throw err;
-  }
+  return readCollection("order", ORDERS_FILE);
 }
 
 // Get next order number (ORD-20260902-000001)
@@ -82,19 +74,29 @@ async function createOrder(data) {
       updatedAt: now,
     };
     orders.push(order);
-    await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2));
+    await writeCollection("order", ORDERS_FILE, orders);
     return order;
   });
 }
 
 async function getAllRequests() {
-  try {
-    await ensureDataDir();
-    return JSON.parse(await fs.readFile(REQUESTS_FILE, "utf8"));
-  } catch (err) {
-    if (err.code === "ENOENT") return [];
-    throw err;
-  }
+  return readCollection("request", REQUESTS_FILE);
+}
+
+async function getAllServiceRequests() { return getAllRequests(); }
+
+async function getAllContactMessages() {
+  return readCollection("contact", CONTACTS_FILE);
+}
+
+async function createContactRecord(fields) {
+  return serializeWrite(async () => {
+    const contacts = await getAllContactMessages();
+    const contact = { id: `MSG-${randomUUID().slice(0, 8).toUpperCase()}`, fields, status: "new", replies: [], createdAt: new Date().toISOString() };
+    contacts.push(contact);
+    await writeCollection("contact", CONTACTS_FILE, contacts);
+    return contact;
+  });
 }
 
 async function createServiceRequest(fields) {
@@ -108,7 +110,7 @@ async function createServiceRequest(fields) {
     const id = `${prefix}${String(count).padStart(6, "0")}`;
     const request = { id, fields, status: "pending", createdAt: now.toISOString() };
     requests.push(request);
-    await fs.writeFile(REQUESTS_FILE, JSON.stringify(requests, null, 2));
+    await writeCollection("request", REQUESTS_FILE, requests);
     return request;
   });
 }
@@ -126,20 +128,91 @@ async function getOrderById(id) {
 
 // Update order status
 async function updateOrderStatus(orderId, newStatus) {
-  const orders = await getAllOrders();
-  const orderIndex = orders.findIndex(o => o.id === orderId || o.orderNumber === orderId);
-  
-  if (orderIndex === -1) {
-    throw new Error("Order not found");
-  }
-  
-  const previousStatus = orders[orderIndex].status;
-  orders[orderIndex].status = newStatus;
-  orders[orderIndex].updatedAt = new Date().toISOString();
-  
-  await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2));
-  
-  return { ...orders[orderIndex], previousStatus };
+  return serializeWrite(async () => {
+    const orders = await getAllOrders();
+    const orderIndex = orders.findIndex(o => o.id === orderId || o.orderNumber === orderId);
+    if (orderIndex === -1) throw new Error("Order not found");
+    const previousStatus = orders[orderIndex].status;
+    orders[orderIndex].status = newStatus;
+    orders[orderIndex].updatedAt = new Date().toISOString();
+    await writeCollection("order", ORDERS_FILE, orders);
+    return { ...orders[orderIndex], previousStatus };
+  });
 }
 
-export { getAllOrders, generateOrderNumber, createOrder, getOrderById, updateOrderStatus, createServiceRequest, getServiceRequestById };
+async function updateServiceRequestStatus(requestId, newStatus) {
+  return serializeWrite(async () => {
+    const requests = await getAllRequests();
+    const index = requests.findIndex((request) => request.id === requestId);
+    if (index === -1) throw new Error("Request not found");
+    const previousStatus = requests[index].status;
+    requests[index] = { ...requests[index], status: newStatus, updatedAt: new Date().toISOString() };
+    await writeCollection("request", REQUESTS_FILE, requests);
+    return { ...requests[index], previousStatus };
+  });
+}
+
+async function addAdminReply(kind, id, reply) {
+  return serializeWrite(async () => {
+    const collection = kind === "order" ? "order" : kind === "request" ? "request" : "contact";
+    const file = kind === "order" ? ORDERS_FILE : kind === "request" ? REQUESTS_FILE : CONTACTS_FILE;
+    const records = await readCollection(collection, file);
+    const index = records.findIndex((record) => record.id === id || record.orderNumber === id);
+    if (index === -1) throw new Error("Record not found");
+    records[index].replies ||= [];
+    records[index].replies.push({ ...reply, createdAt: new Date().toISOString() });
+    await writeCollection(collection, file, records);
+    return records[index];
+  });
+}
+
+async function readCollection(kind, file) {
+  if (hasSupabaseConfig()) {
+    const base = process.env.SUPABASE_URL.replace(/\/$/, "");
+    const response = await fetch(`${base}/rest/v1/lapgpt_records?select=data&kind=eq.${kind}&order=created_at.asc`, { headers: supabaseHeaders() });
+    if (!response.ok) throw new Error(`Supabase read failed (${response.status}).`);
+    const rows = await response.json();
+    if (rows.length) return rows.map((row) => row.data);
+    const legacy = await readLocalCollection(file);
+    if (legacy.length) await writeCollection(kind, file, legacy);
+    return legacy;
+  }
+  return readLocalCollection(file);
+}
+
+async function readLocalCollection(file) {
+  try {
+    await ensureDataDir();
+    return JSON.parse(await fs.readFile(file, "utf8"));
+  } catch (err) {
+    if (err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+async function writeCollection(kind, file, records) {
+  if (hasSupabaseConfig()) {
+    if (!records.length) return;
+    const rows = records.map((data) => ({ id: data.id, kind, created_at: data.createdAt || new Date().toISOString(), data }));
+    const response = await fetch(`${process.env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/lapgpt_records?on_conflict=id`, {
+      method: "POST",
+      headers: { ...supabaseHeaders(), "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(rows),
+    });
+    if (!response.ok) throw new Error(`Supabase write failed (${response.status}).`);
+    return;
+  }
+  await ensureDataDir();
+  await fs.writeFile(file, JSON.stringify(records, null, 2));
+}
+
+function supabaseHeaders() {
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return { apikey: key, Authorization: `Bearer ${key}` };
+}
+
+function hasSupabaseConfig() {
+  return Boolean(process.env.SUPABASE_URL && (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY));
+}
+
+export { getAllOrders, generateOrderNumber, createOrder, getOrderById, updateOrderStatus, createServiceRequest, getServiceRequestById, getAllServiceRequests, getAllContactMessages, createContactRecord, updateServiceRequestStatus, addAdminReply };

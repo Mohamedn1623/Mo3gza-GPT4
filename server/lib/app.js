@@ -2,8 +2,10 @@ import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
-import { sendNewRequest, sendContactMessage, sendCustomerMessage, sendStatusUpdate, sendOrderConfirmation, sendAdminOrderNotification } from "./emailService.js";
-import { createOrder, getOrderById, getAllOrders, createServiceRequest, getServiceRequestById } from "./orderDatabase.js";
+import { sendNewRequest, sendContactMessage, sendCustomerMessage, sendStatusUpdate, sendOrderConfirmation, sendAdminOrderNotification, sendAdminCustomerEmail } from "./emailService.js";
+import { createOrder, getOrderById, getAllOrders, createServiceRequest, getServiceRequestById, getAllServiceRequests, getAllContactMessages, createContactRecord, updateOrderStatus, updateServiceRequestStatus, addAdminReply } from "./orderDatabase.js";
+import { adminCredentialsConfigured, createAdminToken, requireAdmin, verifyAdminPassword } from "./adminAuth.js";
+import { sendSms } from "./smsService.js";
 
 dotenv.config();
 
@@ -16,9 +18,9 @@ export function createApp() {
       credentials: true,
     })
   );
+
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
   app.use(
     rateLimit({
       windowMs: 60 * 1000,
@@ -28,6 +30,73 @@ export function createApp() {
     })
   );
 
+  const adminLoginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 8, standardHeaders: true, legacyHeaders: false });
+
+  app.post("/api/admin/login", adminLoginLimiter, (req, res) => {
+    if (!adminCredentialsConfigured()) return res.status(503).json({ error: "إعداد ADMIN_USERNAME وADMIN_PASSWORD وADMIN_SESSION_SECRET في .env أولًا." });
+    if (!verifyAdminPassword(req.body?.username, req.body?.password)) return res.status(401).json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة." });
+    return res.json({ token: createAdminToken(req.body.username), expiresIn: 8 * 60 * 60 });
+  });
+
+  app.use("/api/admin", requireAdmin);
+
+  app.get("/api/admin/dashboard", async (_req, res) => {
+    try {
+      const [orders, requests, contacts] = await Promise.all([getAllOrders(), getAllServiceRequests(), getAllContactMessages()]);
+      res.json({
+        orders: orders.map(({ paymentReceipt, ...order }) => ({ ...order, paymentReceipt: Boolean(paymentReceipt) })),
+        requests: requests.map(({ fields = {}, ...request }) => {
+          const { payment_receipt, ...safeFields } = fields;
+          return { ...request, fields: safeFields, hasReceipt: Boolean(payment_receipt), customerName: fields.name || fields["الاسم"] || "—", customerPhone: fields.phone || fields["رقم_الهاتف"] || "—", customerEmail: fields.email || fields["البريد_الإلكتروني"] || "" };
+        }),
+        contacts: contacts.map(({ fields = {}, ...contact }) => ({ ...contact, fields })),
+      });
+    } catch (err) {
+      console.error("Admin dashboard error", err);
+      res.status(500).json({ error: "تعذر تحميل بيانات لوحة الإدارة." });
+    }
+  });
+
+  app.post("/api/admin/status", async (req, res) => {
+    const { kind, id, status, notifyVia = "none" } = req.body || {};
+    const allowedStatuses = ["awaiting_payment_review", "pending", "processing", "awaiting_customer", "ready", "shipped", "completed", "cancelled"];
+    if (!["order", "request"].includes(kind) || !id || !allowedStatuses.includes(status) || !["none", "email", "sms", "both"].includes(notifyVia)) {
+      return res.status(400).json({ error: "بيانات تحديث الحالة غير صحيحة." });
+    }
+    try {
+      const updated = kind === "order" ? await updateOrderStatus(id, status) : await updateServiceRequestStatus(id, status);
+      const customer = getCustomerContact(kind, updated);
+      const message = `تم تحديث حالة طلبك ${id} إلى: ${statusLabel(status)}.`;
+      const notifications = [];
+      if (notifyVia === "email" || notifyVia === "both") notifications.push(sendAdminCustomerEmail({ to: customer.email, customerName: customer.name, subject: `تحديث حالة الطلب ${id} - LapGPT`, message }));
+      if (notifyVia === "sms" || notifyVia === "both") notifications.push(sendSms({ to: customer.phone, message: `LapGPT: ${message}` }));
+      const results = await Promise.allSettled(notifications);
+      const failures = results.filter((result) => result.status === "rejected").map((result) => result.reason.message);
+      res.json({ ok: true, order: { id, status: updated.status }, notificationErrors: failures });
+    } catch (err) {
+      console.error("Admin status update error", err);
+      res.status(500).json({ error: err.message || "تعذر تحديث حالة الطلب." });
+    }
+  });
+
+  app.post("/api/admin/reply", async (req, res) => {
+    const { kind, id, channel, message, subject } = req.body || {};
+    if (!["order", "request", "contact"].includes(kind) || !id || !["email", "sms"].includes(channel) || typeof message !== "string" || !message.trim() || message.length > 2000) {
+      return res.status(400).json({ error: "اكتب ردًا واختر قناة إرسال صحيحة." });
+    }
+    try {
+      const record = await getAdminRecord(kind, id);
+      if (!record) return res.status(404).json({ error: "لم يتم العثور على السجل." });
+      const customer = getCustomerContact(kind, record);
+      if (channel === "email") await sendAdminCustomerEmail({ to: customer.email, customerName: customer.name, subject, message: message.trim() });
+      else await sendSms({ to: customer.phone, message: `LapGPT: ${message.trim()}` });
+      await addAdminReply(kind, id, { channel, message: message.trim(), admin: req.admin.username });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Admin customer reply error", err);
+      res.status(400).json({ error: err.message || "تعذر إرسال الرد." });
+    }
+  });
   app.post("/api/requests", async (req, res) => {
     try {
       const fields = req.body || {};
@@ -51,8 +120,11 @@ export function createApp() {
 
   app.post("/api/contact", async (req, res) => {
     try {
-      await sendContactMessage({ fields: req.body || {} });
-      res.json({ ok: true });
+      const fields = req.body || {};
+      const contact = await createContactRecord(fields);
+      try { await sendContactMessage({ fields }); }
+      catch (emailErr) { console.error("Contact notification failed", contact.id, emailErr); }
+      res.status(201).json({ ok: true, id: contact.id });
     } catch (err) {
       console.error("Contact submission error", err);
       res.status(500).json({ ok: false, error: err.message || "server_error" });
@@ -227,3 +299,24 @@ function samePhone(saved, supplied) {
 }
 
 export default createApp;
+
+async function getAdminRecord(kind, id) {
+  if (kind === "order") return getOrderById(id);
+  if (kind === "request") return getServiceRequestById(id);
+  const contacts = await getAllContactMessages();
+  return contacts.find((contact) => contact.id === id);
+}
+
+function getCustomerContact(kind, record) {
+  if (kind === "order") return { name: record.customerName, email: record.customerEmail, phone: record.customerPhone };
+  const fields = kind === "request" ? record.fields || {} : record.fields || {};
+  return {
+    name: fields.name || fields["الاسم"] || "عميل LapGPT",
+    email: fields.email || fields["البريد_الإلكتروني"] || "",
+    phone: fields.phone || fields["رقم_الهاتف"] || "",
+  };
+}
+
+function statusLabel(status) {
+  return ({ awaiting_payment_review: "مراجعة إثبات التحويل", pending: "جديد", processing: "قيد التنفيذ", awaiting_customer: "بانتظار العميل", ready: "جاهز للتسليم", shipped: "تم الشحن", completed: "مكتمل", cancelled: "ملغي" })[status] || status;
+}

@@ -70,3 +70,27 @@ export async function getServiceRequest(requestId, phone) {
     method: "GET",
   });
 }
+
+export async function adminLogin(payload) {
+  return requestJson("/api/admin/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+function adminRequest(path, body) {
+  const token = sessionStorage.getItem("lapgpt_admin_token");
+  return requestJson(`/api/admin${path}`, {
+    method: body ? "POST" : "GET",
+    headers: {
+      Authorization: `Bearer ${token || ""}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
+export function getAdminDashboard() { return adminRequest("/dashboard"); }
+export function updateAdminStatus(payload) { return adminRequest("/status", payload); }
+export function replyToCustomer(payload) { return adminRequest("/reply", payload); }

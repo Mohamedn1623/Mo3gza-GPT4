@@ -109,6 +109,13 @@ async function sendMail({ to, subject, html, attachments = [], replyTo }) {
   return transporter.sendMail(mail);
 }
 
+export async function sendAdminCustomerEmail({ to, subject, message, customerName }) {
+  if (!to) throw new Error("العميل ليس لديه بريد إلكتروني مسجل.");
+  const body = escapeHtml(message).replace(/\r?\n/g, "<br>");
+  const html = `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.9;color:#172033"><h2>مرحبًا ${escapeHtml(customerName || "")}</h2><p>${body}</p><hr><small>رسالة من فريق LapGPT</small></div>`;
+  return sendMail({ to, subject: subject || "رسالة من LapGPT", html });
+}
+
 /* =========================
    NEW REQUEST
 ========================= */

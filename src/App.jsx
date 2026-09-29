@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
+import AdminDashboard from "./AdminDashboard";
 import { createRequest, createOrder, getOrder, getServiceRequest, sendContact, sendMessage, sendStatus } from "./api";
 import {
   BatteryCharging,
@@ -9,10 +10,27 @@ import {
   Cpu,
   Headphones,
   Laptop,
+  HardDrive,
+  MemoryStick,
+  Cable,
+  Fan,
+  Keyboard,
+  Mouse,
+  Webcam,
+  Monitor,
+  Wifi,
+  Usb,
+  BriefcaseBusiness,
+  Gamepad2,
+  Router,
+  Plug,
+  SprayCan,
+  Wrench,
+  Mic,
+  PanelTop,
   MapPin,
   Menu,
   MessageCircle,
-  Monitor,
   Package,
   Phone,
   Plus,
@@ -21,7 +39,6 @@ import {
   ShoppingCart,
   Star,
   Truck,
-  Wrench,
   X,
   Zap,
 } from "lucide-react";
@@ -125,7 +142,7 @@ const receiptAsDataUrl = (file) => new Promise((resolve, reject) => {
 });
 
 export default function App() {
-  const [page, setPage] = useState("home");
+  const [page, setPage] = useState(() => window.location.pathname === "/admin" ? "admin" : "home");
   const [menu, setMenu] = useState(false);
   const [cart, setCart] = useState([]);
   const [query, setQuery] = useState("");
@@ -134,12 +151,24 @@ export default function App() {
   const [booking, setBooking] = useState({ step: 1, done: false, id: "" });
   const [tracking, setTracking] = useState(false);
 
-  const navigate = (target) => { setPage(target); setMenu(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const navigate = (target) => {
+    setPage(target); setMenu(false);
+    const nextPath = target === "admin" ? "/admin" : "/";
+    if (window.location.pathname !== nextPath) window.history.pushState({}, "", nextPath);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  useEffect(() => {
+    const onPopState = () => setPage(window.location.pathname === "/admin" ? "admin" : "home");
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const add = (product) => { setCart(old => { const found = old.find(x => x.id === product.id); return found ? old.map(x => x.id === product.id ? { ...x, quantity: x.quantity + 1 } : x) : [...old, { ...product, quantity: 1 }]; }); setNotice("تمت إضافة المنتج إلى السلة"); };
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = useMemo(() => products.filter(p => (category === "الكل" || p.category === category) && p.name.toLowerCase().includes(normalizedQuery)), [normalizedQuery, category]);
   const count = cart.reduce((sum, x) => sum + x.quantity, 0);
   const total = cart.reduce((sum, x) => sum + x.price * x.quantity, 0);
+
+  if (page === "admin") return <AdminDashboard onExit={() => navigate("home")} />;
 
   return (
     <div dir="rtl">
@@ -168,6 +197,7 @@ function Header({ page, navigate, count, menu, setMenu }) {
         <button className="brand" onClick={() => navigate("home")}><Laptop/><span>Lap<b>GPT</b></span></button>
         <nav className={menu ? "open" : ""}>{links.map(([id, text]) => <button className={page === id ? "active" : ""} key={id} onClick={() => navigate(id)}>{text}</button>)}</nav>
         <div className="nav-actions">
+          <button className="admin-entry" onClick={() => navigate("admin")}><ShieldCheck size={16}/> لوحة الإدارة</button>
           <button className="icon" aria-label="السلة" onClick={() => navigate("cart")}><ShoppingCart/>{count > 0 && <i>{count}</i>}</button>
           <button className="icon menu" aria-label="القائمة" onClick={() => setMenu(!menu)}>{menu ? <X/> : <Menu/>}</button>
         </div>
@@ -179,7 +209,7 @@ function Header({ page, navigate, count, menu, setMenu }) {
 function Home({ navigate, onBook, add }) {
   return (
     <>
-      <section className="hero"><div className="container hero-grid"><div><span className="eyebrow"><Zap size={16}/> خبرة تثق بها منذ أكثر من 10 سنوات</span><h1>صيانة لابتوبك <em>أسهل وأسرع</em></h1><p>احجز صيانة، اطلب استلام جهازك من المنزل، أو تسوّق قطع الغيار والإكسسوارات في مكان واحد.</p><div className="actions"><button className="primary" onClick={onBook}>احجز صيانة الآن <ChevronLeft/></button><button className="outline" onClick={() => navigate("shipping")}>اطلب شحن جهازك <Truck/></button></div><div className="trust"><span><CheckCircle2/> ضمان على الصيانة</span><span><CheckCircle2/> قطع غيار مضمونة</span></div></div><div className="laptop-art"><Laptop size={160}/><b><ShieldCheck/> ضمان موثوق</b><b><Clock3/> خدمة سريعة</b></div></div></section>
+      <section className="hero"><div className="container hero-grid"><div><span className="eyebrow"><Zap size={16}/> خبرة تثق بها منذ أكثر من 10 سنوات</span><h1>صيانة لابتوبك <em>أسهل وأسرع</em></h1><p>احجز صيانة، اطلب استلام جهازك من المنزل، أو تسوّق قطع الغيار والإكسسوارات في مكان واحد.</p><div className="actions"><button className="primary" onClick={onBook}>احجز صيانة الآن <ChevronLeft/></button><button className="outline" onClick={() => navigate("shipping")}>اطلب شحن جهازك <Truck/></button><button className="admin-home-link" onClick={() => navigate("admin")}><ShieldCheck size={17}/> دخول الإدارة ومتابعة الطلبات</button></div><div className="trust"><span><CheckCircle2/> ضمان على الصيانة</span><span><CheckCircle2/> قطع غيار مضمونة</span></div></div><div className="laptop-art"><Laptop size={160}/><b><ShieldCheck/> ضمان موثوق</b><b><Clock3/> خدمة سريعة</b></div></div></section>
       <Features />
       <section className="section container"><Title eyebrow="خدماتنا" title="كل ما يحتاجه جهازك في مكان واحد" text="فريق متخصص وقطع غيار عالية الجودة لضمان أفضل أداء."/><div className="grid services">{services.slice(0,3).map(s => <ServiceCard key={s.id} service={s} onBook={onBook}/>)}</div><div className="center"><button className="secondary" onClick={() => navigate("services")}>عرض جميع الخدمات <ChevronLeft/></button></div></section>
     </>
@@ -344,7 +374,14 @@ function Shipping({ notify }) {
 
 function Store({ items, add, query, setQuery, category, setCategory }) { const cats=["الكل",...new Set(products.map(p=>p.category))]; return <Page title="متجر LapGPT" text="قطع غيار وإكسسوارات أصلية ومتوافقة بجودة مضمونة. الأسعار استرشادية بالجنيه المصري، ومراجعتها الأخيرة 27 سبتمبر 2026."><div className="toolbar"><label><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ابحث عن منتج..."/></label><div>{cats.map(x=><button key={x} className={category===x?"selected":""} onClick={()=>setCategory(x)}>{x}</button>)}</div></div>{items.length?<div className="grid products">{items.map(p=><ProductCard key={p.id} product={p} add={add}/>)}</div>:<div className="empty"><Search/><h3>لا توجد منتجات</h3><p>جرّب البحث بكلمات مختلفة.</p></div>}</Page>; }
 
-function ProductCard({ product, add }) { return <article className="card product"><div className="product-image"><img src={product.image} alt={product.name}/></div><div><small>{product.category}</small><h3>{product.name}</h3><p className="rating"><Star size={15} fill="currentColor"/>{product.rating}</p><b>{money(product.price)}</b><button className="primary full" onClick={() => add(product)}><Plus/> أضف للسلة</button></div></article>; }
+function ProductArtwork({ name }) {
+  const rules = [
+    [/ssd|هارد|فلاشة|flash|تخزين/i, HardDrive], [/ram|رام/i, MemoryStick], [/كابل|وصلة|hdmi|displayport/i, Cable], [/مروحة|تبريد|cooler|معجون/i, Fan], [/كيبورد|keyboard/i, Keyboard], [/ماوس|mouse|pad/i, Mouse], [/سماعة|headphone|bluetooth/i, Headphones], [/webcam|كاميرا/i, Webcam], [/شاشة|monitor/i, Monitor], [/wifi|واي.?فاي/i, Wifi], [/usb|hub|قارئ/i, Usb], [/حقيبة|شنطة/i, BriefcaseBusiness], [/gamepad|ألعاب|gaming/i, Gamepad2], [/راوتر|router/i, Router], [/شاحن|power bank|باور بنك/i, BatteryCharging], [/كهرباء|power strip/i, Plug], [/منظف|spray/i, SprayCan], [/عدة صيانة|مفك/i, Wrench], [/ميكروفون|microphone/i, Mic], [/حامل لابتوب|stand/i, PanelTop],
+  ];
+  const Icon = rules.find(([pattern]) => pattern.test(name))?.[1] || Laptop;
+  return <div className="product-art" role="img" aria-label={`رسم توضيحي: ${name}`}><span className="art-glow"/><Icon aria-hidden="true" strokeWidth={1.35}/><small>LAPGPT</small></div>;
+}
+function ProductCard({ product, add }) { return <article className="card product"><div className="product-image"><ProductArtwork name={product.name}/></div><div><small>{product.category}</small><h3>{product.name}</h3><p className="rating"><Star size={15} fill="currentColor"/>{product.rating}</p><b>{money(product.price)}</b><button className="primary full" onClick={() => add(product)}><Plus/> أضف للسلة</button></div></article>; }
 
 function Track({ show, setShow }) {
   const [orderNumber, setOrderNumber] = useState("");
@@ -422,7 +459,7 @@ function Cart({ cart, total, update, navigate, notify }) {
   return (
     <Page title="سلة المشتريات" text="راجع منتجاتك قبل إتمام الطلب.">
       <div className="cart">
-        <div>{cart.map(x => <article className="cart-item" key={x.id}><img src={x.image} alt=""/><div><h3>{x.name}</h3><b>{money(x.price)}</b><p><button onClick={()=>update(x.id,x.quantity+1)}>+</button>{x.quantity}<button onClick={()=>update(x.id,x.quantity-1)}>-</button></p></div><button className="remove" onClick={()=>update(x.id,0)}><X/></button></article>)}</div>
+        <div>{cart.map(x => <article className="cart-item" key={x.id}><div className="cart-art"><ProductArtwork name={x.name}/></div><div><h3>{x.name}</h3><b>{money(x.price)}</b><p><button onClick={()=>update(x.id,x.quantity+1)}>+</button>{x.quantity}<button onClick={()=>update(x.id,x.quantity-1)}>-</button></p></div><button className="remove" onClick={()=>update(x.id,0)}><X/></button></article>)}</div>
         <aside className="order"><h2>بيانات التوصيل</h2><label className="field">الاسم<input required value={customer.name} onChange={e=>setCustomer({...customer,name:e.target.value})}/></label><label className="field">رقم الهاتف<input required type="tel" value={customer.phone} onChange={e=>setCustomer({...customer,phone:e.target.value})}/></label><label className="field">البريد الإلكتروني<input required type="email" value={customer.email} onChange={e=>setCustomer({...customer,email:e.target.value})}/></label><label className="field">العنوان بالتفصيل<input required value={customer.address} onChange={e=>setCustomer({...customer,address:e.target.value})}/></label><h2>ملخص الطلب</h2><p><span>الإجمالي الفرعي</span><b>{money(total)}</b></p><p><span>رسوم الشحن</span><b>75 ج.م</b></p><hr/><p><span>الإجمالي</span><b>{money(total+75)}</b></p><div className="payment-step"><p><b>حوّل رسوم الشحن 75 ج.م، ثم ارفع صورة التحويل</b></p><div className="payment-methods"><button type="button" className={paymentMethod === "instapay" ? "payment-card selected" : "payment-card"} onClick={() => setPaymentMethod("instapay")}><img src={paymentLogos.instapay} alt="Instapay" className="payment-logo"/><span><small>انستا باي</small><strong>01068111576</strong></span></button><button type="button" className={paymentMethod === "vodafone" ? "payment-card selected" : "payment-card"} onClick={() => setPaymentMethod("vodafone")}> <img src={paymentLogos.vodafone} alt="Vodafone Cash" className="payment-logo"/><span><small>فودافون كاش</small><strong>01068111576</strong></span></button></div><label className="field full">صورة تحويل الشحن (مطلوبة)<input type="file" accept="image/*" required onChange={handleReceipt}/></label>{receipt && <small>الصورة المرفوعة: {receipt.name}</small>}{feedback && <p className="feedback-message error">{feedback}</p>}</div><button className="primary full" onClick={checkout} disabled={submitting}>{submitting?'جارٍ إرسال الطلب...':'إرسال الطلب للمراجعة'}</button></aside>
       </div>
     </Page>
@@ -457,6 +494,7 @@ function Contact({ notify }) {
           <h2>أرسل رسالة</h2>
           <Field label="الاسم" name="name" required />
           <Field label="رقم الهاتف" name="phone" type="tel" required />
+          <Field label="البريد الإلكتروني" name="email" type="email" />
           <label className="field">رسالتك<textarea name="message" required/></label>
           {feedback && <p className={`feedback-message ${feedback.includes('تعذر') ? 'error' : 'success'}`}>{feedback}</p>}
           <button className="primary full" disabled={submitting}>{submitting ? 'جارٍ الإرسال...' : 'إرسال الرسالة'}</button>
@@ -473,4 +511,4 @@ function Field({label,type="text",placeholder,required,name}){
   const fieldName = name || String(label).replace(/[^a-zA-Z0-9\u0600-\u06FF]+/g,'_');
   return <label className="field">{label}<input name={fieldName} type={type} placeholder={placeholder} required={required}/></label>
 }
-function Footer({navigate}){return <footer className="footer"><div className="container"><div><button className="brand" onClick={()=>navigate("home")}><Laptop/><span>Lap<b>GPT</b></span></button><p>صيانة وبيع مستلزمات اللابتوب في مكان واحد، بإشراف المهندس محمد ناصر معجزه.</p></div><div><b>روابط سريعة</b><button onClick={()=>navigate("services")}>الخدمات</button><button onClick={()=>navigate("store")}>المتجر</button><button onClick={()=>navigate("contact")}>تواصل معنا</button></div><div><b>تواصل</b><p>01068111576<br/>6 أكتوبر، الجيزة<br/>الدفع: انستا باي، فودافون كاش</p></div></div><small>© 2026 LapGPT — جميع الحقوق محفوظة</small></footer>}
+function Footer({navigate}){return <footer className="footer"><div className="container"><div><button className="brand" onClick={()=>navigate("home")}><Laptop/><span>Lap<b>GPT</b></span></button><p>صيانة وبيع مستلزمات اللابتوب في مكان واحد، بإشراف المهندس محمد ناصر معجزه.</p></div><div><b>روابط سريعة</b><button onClick={()=>navigate("services")}>الخدمات</button><button onClick={()=>navigate("store")}>المتجر</button><button onClick={()=>navigate("contact")}>تواصل معنا</button><button onClick={()=>navigate("admin")}>لوحة الإدارة</button></div><div><b>تواصل</b><p>01068111576<br/>6 أكتوبر، الجيزة<br/>الدفع: انستا باي، فودافون كاش</p></div></div><small>© 2026 LapGPT — جميع الحقوق محفوظة</small></footer>}
