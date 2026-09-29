@@ -104,3 +104,4 @@ function adminRequest(path, body) {
 export function getAdminDashboard() { return adminRequest("/dashboard"); }
 export function updateAdminStatus(payload) { return adminRequest("/status", payload); }
 export function replyToCustomer(payload) { return adminRequest("/reply", payload); }
+export function sendAdminTestEmail() { return adminRequest("/test-email", {}); }

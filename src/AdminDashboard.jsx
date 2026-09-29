@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { adminLogin, getAdminDashboard, replyToCustomer, updateAdminStatus } from "./api";
+import { adminLogin, getAdminDashboard, replyToCustomer, sendAdminTestEmail, updateAdminStatus } from "./api";
 import { Activity, Bell, Check, ChevronRight, ClipboardList, LogOut, Mail, MessageSquare, Package, RefreshCw, Search, Send, ShieldCheck, Smartphone, Wrench } from "lucide-react";
 import "./admin.css";
 
@@ -99,6 +99,12 @@ export default function AdminDashboard({ onExit }) {
   };
 
   const logout = () => { sessionStorage.removeItem("lapgpt_admin_token"); setToken(""); setData({ orders: [], requests: [], contacts: [] }); };
+  const testEmail = async () => {
+    setBusy(true); setNotice("");
+    try { await sendAdminTestEmail(); setNotice("تم إرسال رسالة الاختبار إلى البريد المحدد في EMAIL_TO."); }
+    catch (error) { setNotice(error.message || "تعذر إرسال رسالة الاختبار."); }
+    finally { setBusy(false); }
+  };
 
   if (!token) return <main className="admin-login-page" dir="rtl">
     <form className="admin-login-card" onSubmit={handleLogin}>
@@ -126,7 +132,7 @@ export default function AdminDashboard({ onExit }) {
     </aside>
 
     <section className="admin-main">
-      <header className="admin-topbar"><div><span className="admin-kicker">مساحة العمل / {section === "orders" ? "الطلبات" : section === "requests" ? "الصيانة" : "الرسائل"}</span><h1>{section === "orders" ? "طلبات المتجر" : section === "requests" ? "طلبات الصيانة" : "رسائل العملاء"}</h1></div><div className="admin-top-actions"><span className="admin-date">{new Date().toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}</span><button className="admin-icon-button" onClick={() => refresh()} title="تحديث"><RefreshCw size={18}/></button><button className="admin-icon-button" onClick={logout} title="تسجيل الخروج"><LogOut size={18}/></button></div></header>
+      <header className="admin-topbar"><div><span className="admin-kicker">مساحة العمل / {section === "orders" ? "الطلبات" : section === "requests" ? "الصيانة" : "الرسائل"}</span><h1>{section === "orders" ? "طلبات المتجر" : section === "requests" ? "طلبات الصيانة" : "رسائل العملاء"}</h1></div><div className="admin-top-actions"><span className="admin-date">{new Date().toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}</span><button className="admin-primary admin-test-email" onClick={testEmail} disabled={busy}><Mail size={15}/> اختبار البريد</button><button className="admin-icon-button" onClick={() => refresh()} title="تحديث"><RefreshCw size={18}/></button><button className="admin-icon-button" onClick={logout} title="تسجيل الخروج"><LogOut size={18}/></button></div></header>
       <div className="admin-stat-grid">
         <article className="admin-stat"><span className="stat-icon blue"><ClipboardList size={20}/></span><small>إجمالي طلبات المتجر</small><strong>{data.orders.length}</strong><em>كل الطلبات المسجلة</em></article>
         <article className="admin-stat"><span className="stat-icon violet"><Wrench size={20}/></span><small>طلبات الصيانة</small><strong>{data.requests.length}</strong><em>طلبات الأجهزة والاستلام</em></article>

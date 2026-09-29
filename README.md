@@ -14,9 +14,10 @@
    - `EMAIL_TO=your-recipient@example.com`
    - `EMAIL_FROM=LapGPT <your-email@gmail.com>`
    - `APP_URL=https://your-vercel-domain.vercel.app`
+   - `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` (use the values from your private local `.env`, with a random session secret of at least 32 characters)
 4. Deploy.
 
-Before deploying, run `server/data/supabase-schema.sql` in the Supabase SQL Editor. Production deliberately refuses to save records to temporary local files when Supabase is missing. Check `https://your-domain/api/health`; it should return `"storage":"supabase"` before accepting orders.
+Before deploying, run `server/data/supabase-schema.sql` in the Supabase SQL Editor. Production deliberately refuses to save records to temporary local files when Supabase is missing. Copy the Gmail SMTP and admin login variables from your private `.env` into Vercel as well; local `.env` values are not uploaded automatically. Check `https://your-domain/api/health`; it must return `ok: true` with `checks.storage: "supabase"`, `checks.email: true`, and `checks.admin: true` before accepting orders.
 
 ## Email setup
 

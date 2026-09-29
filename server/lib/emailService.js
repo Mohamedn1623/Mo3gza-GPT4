@@ -48,6 +48,10 @@ function getTransporter() {
   });
 }
 
+export function isEmailConfigured() {
+  return Boolean(process.env.SMTP_USER?.trim() && process.env.SMTP_PASSWORD?.trim() && (process.env.EMAIL_TO?.trim() || process.env.SMTP_USER?.trim()));
+}
+
 /* =========================
    SECURITY
 ========================= */

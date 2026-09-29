@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
-import { sendNewRequest, sendContactMessage, sendCustomerMessage, sendStatusUpdate, sendOrderConfirmation, sendAdminOrderNotification, sendAdminCustomerEmail } from "./emailService.js";
+import { sendNewRequest, sendContactMessage, sendCustomerMessage, sendStatusUpdate, sendOrderConfirmation, sendAdminOrderNotification, sendAdminCustomerEmail, isEmailConfigured } from "./emailService.js";
 import { createOrder, getOrderById, getAllOrders, createServiceRequest, getServiceRequestById, getAllServiceRequests, getAllContactMessages, createContactRecord, updateOrderStatus, updateServiceRequestStatus, addAdminReply, checkStorageHealth } from "./orderDatabase.js";
 import { adminCredentialsConfigured, createAdminToken, requireAdmin, verifyAdminPassword } from "./adminAuth.js";
 import { sendSms } from "./smsService.js";
@@ -95,6 +95,16 @@ export function createApp() {
     } catch (err) {
       console.error("Admin customer reply error", err);
       res.status(400).json({ error: err.message || "تعذر إرسال الرد." });
+    }
+  });
+
+  app.post("/api/admin/test-email", async (_req, res) => {
+    try {
+      await sendContactMessage({ fields: { name: "LapGPT", message: "رسالة اختبار: إعداد إرسال البريد يعمل من لوحة الإدارة." } });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Admin email test failed", err);
+      res.status(400).json({ error: err.message || "تعذر إرسال رسالة الاختبار." });
     }
   });
   app.post("/api/requests", async (req, res) => {
@@ -262,22 +272,16 @@ export function createApp() {
 
   app.get("/api/health", async (req, res) => {
     try {
-      const health = await checkStorageHealth();
-      if (!health.ok) return res.status(503).json({ ...health, error: "أضف بيانات Supabase إلى إعدادات Vercel وتأكد من تشغيل الجدول." });
-      res.json({ ...health, message: "backend and storage are ready" });
+      const storage = await checkStorageHealth();
+      const admin = adminCredentialsConfigured();
+      const email = isEmailConfigured();
+      const checks = { storage: storage.storage, email, admin };
+      const ready = storage.ok && email && admin;
+      if (!ready) return res.status(503).json({ ok: false, checks, error: "راجع متغيرات Supabase وSMTP وبيانات دخول الإدارة في إعدادات Vercel." });
+      res.json({ ok: true, checks, message: "backend, storage, email, and admin are ready" });
     } catch (error) {
       console.error("Storage health check failed", error);
       res.status(503).json({ ok: false, storage: "unavailable", error: "تعذر الاتصال بقاعدة بيانات Supabase." });
-    }
-  });
-
-  app.post("/api/test-email", async (req, res) => {
-    try {
-      await sendContactMessage({ fields: { name: "Test User", phone: "0000000000", message: "This is a test email from the backend." } });
-      res.json({ ok: true, message: "test email sent" });
-    } catch (err) {
-      console.error("Test email error", err);
-      res.status(500).json({ ok: false, error: err.message || "test_email_failed" });
     }
   });
 
